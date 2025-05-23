@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>aroTHERM COP Calculator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: sans-serif; max-width: 500px; margin: 2em auto; }
+    label { display: block; margin-top: 1em; }
+    input[type="number"] { width: 100%; box-sizing: border-box; }
+    button { margin-top: 1.5em; padding: 0.5em 1em; }
+    table { margin-top: 2em; width: 100%; border-collapse: collapse; }
+    th, td { padding: 0.3em 0.6em; border-bottom: 1px solid #ccc; }
+    th { text-align: left; }
+    .result { background: #f8f8f8; border-radius: 5px; padding: 1em; }
+  </style>
+</head>
+<body>
+  <h1>aroTHERM plus 7kW COP Calculator</h1>
+  <form id="cop-form">
+    <label>
+      Outdoor Temperature (°C):
+      <input id="outdoor" type="number" step="0.1" required value="10">
+    </label>
+    <label>
+      Flow Temperature (°C):
+      <input id="flow" type="number" step="0.1" required value="30">
+    </label>
+    <label>
+      Return Temperature (°C):
+      <input id="return" type="number" step="0.1" required value="25">
+    </label>
+    <button type="submit">Calculate COP</button>
+  </form>
+  <div id="result" class="result" style="display:none"></div>
+  <script src="cop.js"></script>
+</body>
+</html>
