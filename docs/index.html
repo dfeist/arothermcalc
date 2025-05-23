@@ -4,83 +4,87 @@
   <meta charset="UTF-8" />
   <title>aroTHERM COP Calculator</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Tailwind via CDN for quick style (optional) -->
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 500px; margin: 2em auto; padding: 0 1rem; }
-    label { display: block; margin-top: 1em; }
-    input[type="number"] { width: 100%; box-sizing: border-box; padding: .4em; }
-    button { margin-top: 1.5em; padding: 0.5em 1em; border: 0; background: #2563eb; color: #fff; border-radius: .375rem; cursor: pointer; }
-    button:hover { background: #1d4ed8; }
-    .result { background: #f8fafc; border-radius: .5rem; padding: 1em; margin-top: 2em; border: 1px solid #e2e8f0; }
-    table { width:100%; border-collapse: collapse; margin-top: 1em; }
-    th,td { padding:.3em .6em; border-bottom:1px solid #e2e8f0; text-align:left; }
-    h1 { font-size: 1.4rem; font-weight: 600; }
+    body { font-family: system-ui, sans-serif; max-width: 520px; margin: 2rem auto; padding: 0 1rem; }
+    h1  { font-size: 1.5rem; font-weight:600; }
+    label{ display:block; margin-top:1rem; }
+    input[type="number"]{ width:100%; padding:.45em; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:.375rem; }
+    button{ margin-top:1.5rem; padding:.6em 1.2em; background:#2563eb; color:#fff; border:none; border-radius:.375rem; cursor:pointer; }
+    button:hover{ background:#1d4ed8; }
+    .result{ display:none; background:#f8fafc; border:1px solid #e2e8f0; border-radius:.5rem; padding:1rem; margin-top:2rem; }
+    table{ width:100%; border-collapse:collapse; }
+    th,td{ padding:.35em .65em; border-bottom:1px solid #e2e8f0; text-align:left; }
   </style>
 </head>
 <body>
-  <h1>aroTHERM&nbsp;plus&nbsp;7&nbsp;kW COP Calculator</h1>
+  <h1>aroTHERM&nbsp;plus 7&nbsp;kW COP Calculator</h1>
   <form id="cop-form">
     <label>
-      Outdoor temperature (°C):
+      Outdoor temperature (°C):
       <input id="outdoor" type="number" step="0.1" required value="10">
     </label>
     <label>
-      Flow temperature (°C):
+      Flow temperature (°C):
       <input id="flow" type="number" step="0.1" required value="30">
     </label>
     <label>
-      Return temperature (°C):
+      Return temperature (°C):
       <input id="return" type="number" step="0.1" required>
+    </label>
+    <label>
+      Compressor speed (rps 30–120):
+      <input id="speed" type="number" step="1" min="30" max="120" required value="80">
     </label>
     <button type="submit">Calculate COP</button>
   </form>
 
-  <div id="result" class="result" style="display:none"></div>
+  <div id="result" class="result"></div>
 
   <script>
-  // ── helper look‑ups (same logic as before) ─────────────────────────────────
+  //–––– helper look‑ups ––––
   function condOffset(flow){ return flow <= 37 ? 3 : (flow <= 52 ? 4 : 5); }
-  function evapOffset(outdoor){ return outdoor >= 5 ? 5 : (outdoor >= 0 ? 6 : (outdoor >= -5 ? 7 : 8)); }
-  function etaCarnot(outdoor, flow){
-    let eta = outdoor >= 5 ? 0.48 : (outdoor >= 0 ? 0.47 : (outdoor >= -5 ? 0.45 : 0.44));
-    if (flow >= 50) eta -= 0.03; else if (flow >= 40) eta -= 0.02;
-    return Math.round(eta*1000)/1000;
+  function evapOffset(out){ return out >= 5 ? 5 : (out >= 0 ? 6 : (out >= -5 ? 7 : 8)); }
+  function etaCarnot(out, flow, speed){
+    let eta = out >= 5 ? 0.48 : (out >= 0 ? 0.47 : (out >= -5 ? 0.45 : 0.44));
+    if(flow >= 50) eta -= 0.03; else if(flow >= 40) eta -= 0.02;
+    // crude speed adjustment: best around 80 rps, drop a little at the extremes
+    if(speed < 50)      eta -= 0.02;
+    else if(speed < 70) eta -= 0.01;
+    else if(speed > 100)eta += 0.01;
+    return Math.round(Math.max(0.38, Math.min(0.52, eta))*1000)/1000;
   }
-  function calcCOP(out, flow, ret){
+
+  function calcCOP(out, flow, ret, speed){
     const Tc = (flow+ret)/2 + condOffset(flow) + 273.15;
     const Te = out - evapOffset(out) + 273.15;
-    const copCarnot = Tc / (Tc - Te);
-    const eta = etaCarnot(out, flow);
+    const copCarnot = Tc / (Tc-Te);
+    const eta = etaCarnot(out, flow, speed);
     return { copCarnot, copReal: eta*copCarnot, eta, dTc: condOffset(flow), dTe: evapOffset(out) };
   }
 
-  // ── UI glue ──────────────────────────────────────────────────────────────
-  const flowEl = document.getElementById('flow');
-  const retEl  = document.getElementById('return');
-
-  // auto‑fill return = flow‑5 on load and when flow changes (unless user edits)
-  const defaultDelta = 5;
-  function setReturnDefault(){ retEl.value = (parseFloat(flowEl.value||0) - defaultDelta).toFixed(1); }
-  // initial
-  setReturnDefault();
-  // update when flow changes
+  // auto‑default return = flow-5
+  const flowEl=document.getElementById('flow');
+  const retEl =document.getElementById('return');
+  const speedEl=document.getElementById('speed');
+  function setReturnDefault(){ retEl.value=(parseFloat(flowEl.value||0)-5).toFixed(1); }
   flowEl.addEventListener('input', setReturnDefault);
+  setReturnDefault();
 
-  document.getElementById('cop-form').addEventListener('submit', e => {
+  document.getElementById('cop-form').addEventListener('submit', e=>{
     e.preventDefault();
-    const out  = parseFloat(document.getElementById('outdoor').value);
-    const flow = parseFloat(flowEl.value);
-    const ret  = parseFloat(retEl.value);
-    if(isNaN(out)||isNaN(flow)||isNaN(ret)) return alert('Enter valid numbers');
-
-    const {copCarnot, copReal, eta, dTc, dTe} = calcCOP(out, flow, ret);
-    document.getElementById('result').innerHTML = `
-      <table>
-        <tr><th>Condensing offset</th><td>${dTc.toFixed(1)} K</td></tr>
-        <tr><th>Evaporator offset</th><td>${dTe.toFixed(1)} K</td></tr>
-        <tr><th>Carnot efficiency (η)</th><td>${eta}</td></tr>
-        <tr><th>Carnot COP</th><td>${copCarnot.toFixed(2)}</td></tr>
-        <tr><th>Expected COP</th><td>${copReal.toFixed(2)}</td></tr>
+    const out=parseFloat(document.getElementById('outdoor').value);
+    const flow=parseFloat(flowEl.value);
+    const ret=parseFloat(retEl.value);
+    const speed=parseFloat(speedEl.value);
+    if([out,flow,ret,speed].some(x=>isNaN(x))){ alert('Enter valid numbers'); return; }
+    const {copCarnot,copReal,eta,dTc,dTe}=calcCOP(out,flow,ret,speed);
+    document.getElementById('result').innerHTML=`<table>
+       <tr><th>Condensing offset</th><td>${dTc.toFixed(1)} K</td></tr>
+       <tr><th>Evaporator offset</th><td>${dTe.toFixed(1)} K</td></tr>
+       <tr><th>Carnot efficiency (η)</th><td>${eta}</td></tr>
+       <tr><th>Carnot COP</th><td>${copCarnot.toFixed(2)}</td></tr>
+       <tr><th>Expected COP</th><td>${copReal.toFixed(2)}</td></tr>
+       <tr><th>Input speed</th><td>${speed} rps</td></tr>
       </table>`;
     document.getElementById('result').style.display='block';
   });
